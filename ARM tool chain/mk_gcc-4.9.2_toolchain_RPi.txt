@@ -1,0 +1,355 @@
+##
+## Build instructions version 14.0
+## Copyright©2018, by Suleman Saya
+##
+## Building Linux Tool chain For ARM base micro-controller
+## - Assignment 2     
+
+Before you start the GNU tool chain build process, please make
+sure that you have about 4 gigabytes of hard drive space on your host computer. 
+Use "df" command to check available hard drive space.
+
+These instructions are tested on Debian 8.6 and ubuntu 16.04 distribution
+but they should also work on other Linux distributions.  You will need to have
+a complete development environment installed on your host system from your 
+Linux distributions.
+
+These step by step instructions will help you create a tool chain for  
+target board.  Once the tool chain is created correctly you will be able to 
+compile any C/C++ programs and kernel code that will only run on  target board.
+
+A. Setting up environment for the tool chain.
+B. Steps to create tool chain.
+C. Testing The Tool Chain.
+D. Repackaging the initramfs
+E. Downloading initramfs Image to the Target Board
+
+################################ Part A ##############################
+A. Setting up environment for the tool chain.
+
+1. From within your home directory issue following command to create directories:
+
+mkdir -p ~/buildArmlinux/{BUILD,initramfs,KERNEL,SRC}
+
+
+                                  buildArmlinux
+                                        |
+                 _____________________________________________
+                 |              |               |            |
+               BUILD         initramfs        KERNEL        SRC
+
+
+2. Download envSetup_toolchain.bash file from assignment#2 into a buildArmlinux directory.
+
+
+################################ Part B ##############################
+B. Steps to create tool chain.
+
+
+1. To create a GNU tool chain following standard GNU distributions files are required.
+
+binutils-2.24.tar.bz2
+gcc-4.9.2.tar.bz2
+glibc-2.20.tar.bz2 
+gmp-6.0.0a.tar.xz
+mpc-1.0.2.tar.gz
+mpfr-3.1.2.tar.bz2
+
+You will download above files from respective web sites into a following directory: 
+cd ${HOME}/buildArmlinux/SRC
+
+         <-------------------------------------------------->
+
+2. Download Required GNU Distributions into SRC directory
+
+- binutils version
+wget http://ftpmirror.gnu.org/binutils/binutils-2.24.tar.bz2
+
+- gcc version
+wget http://ftpmirror.gnu.org/gcc/gcc-4.9.2/gcc-4.9.2.tar.bz2
+
+- glibc version
+wget http://ftpmirror.gnu.org/glibc/glibc-2.20.tar.bz2
+
+- gmp version
+wget http://ftpmirror.gnu.org/gmp/gmp-6.0.0a.tar.xz
+
+- mpc version
+wget https://ftp.gnu.org/gnu/mpc/mpc-1.0.2.tar.gz
+
+- mpfr version
+wget http://ftpmirror.gnu.org/mpfr/mpfr-3.1.2.tar.bz2
+
+
+         <-------------------------------------------------->
+
+3. Initialize Toolchain Environment
+Initialize all the environment variables that are in the envSetup_toolchain.bash 
+file by using a source command or a . (dot).  Either of the following conventions 
+are acceptable:
+
+cd ~/buildArmlinux
+
+source envSetup_toolchain.bash
+OR
+. envSetup_toolchain.bash
+
+After using one of the above command, use an echo command on one of the environment 
+variable that is in the envSetup_toolchain.bash file to make sure source command 
+was successful:
+
+echo $PREFIX
+
+         <-------------------------------------------------->
+
+4. Your environment variables must be set correctly for all of the following steps to
+work successfully.
+
+mkdir -p ~/buildArmlinux/BUILD/toolchain; cd ~/buildArmlinux/BUILD/toolchain
+mkdir -p {$TARGET,lib}; cd $TARGET
+ln -s ../lib .
+
+ 
+         <-------------------------------------------------->
+
+5. BINUTILS
+
+#Make sure that you are in a BUILD directory. 
+cd ${PRJROOT}/BUILD
+
+#Issue following command from the BUILD directory.
+mkdir binutils-2.24.build
+tar jxvf ../SRC/binutils-2.24.tar.bz2  
+
+# change to binutils-2.24.build directory
+cd binutils-2.24.build
+
+../binutils-2.24/configure \
+--target=${TARGET} \
+--prefix=${PREFIX} \
+--disable-nls \
+--disable-werror
+
+make -j4
+make install
+
+         <-------------------------------------------------->
+
+6. KERNEL HEADERS
+
+Download kernel 4.9.41 sources from kernel.org site into a SRC directory that is located under buildArmlinux.
+
+cd ${PRJROOT}/SRC
+wget https://www.kernel.org/pub/linux/kernel/v4.x/linux-4.9.41.tar.xz
+
+cd ${PRJROOT}/KERNEL
+tar xvf ../SRC/linux-4.9.41.tar.xz
+
+You will find 4.9.41 kernel sources under KERNEL/linux-4.9.41 directory
+
+cd ${PRJROOT}/KERNEL/linux-4.9.41
+
+make mrproper
+make ARCH=arm headers_check
+make ARCH=arm INSTALL_HDR_PATH=${PREFIX} headers_install
+
+cd ${PREFIX}/${TARGET}
+ln -s ../include/ .
+ln -s ../include/ ./sys-include
+cd ../include
+
+# Needed for glibc when using newer kernels 
+touch  asm/page.h  
+ln -s ../include/ include
+
+cd ${PRJROOT}/BUILD
+ 
+         <-------------------------------------------------->
+
+7. GCC 1ST PASS
+
+# Make sure you are in a BUILD directory.
+tar jxvf ../SRC/gcc-4.9.2.tar.bz2 -C .
+
+tar jxvf ../SRC/mpfr-3.1.2.tar.bz2
+tar xvf ../SRC/gmp-6.0.0a.tar.xz
+tar xvfz ../SRC/mpc-1.0.2.tar.gz
+
+cd gcc-4.9.2
+
+mv -v ../mpfr-3.1.2 mpfr
+mv -v ../gmp-6.0.0 gmp
+mv -v ../mpc-1.0.2 mpc
+cd ..
+
+mkdir gcc-4.9.2.build-1; cd gcc-4.9.2.build-1
+../gcc-4.9.2/configure \
+--prefix=${PREFIX} \
+--target=${TARGET} \
+--disable-nls \
+--disable-shared \
+--without-headers \
+--with-newlib \
+--disable-multilib \
+--disable-decimal-float \
+--disable-threads \
+--disable-libmudflap \
+--disable-libssp \
+--disable-libgomp \
+--disable-libatomic \
+--disable-libquadmath \
+--disable-target-libiberty \
+--disable-target-zlib \
+--enable-languages=c \
+--without-ppl \
+--without-cloog \
+--with-mpfr-include=${PRJROOT}/BUILD/gcc-4.9.2/mpfr/src \
+--with-mpfr-lib=${PRJROOT}/BUILD/gcc-4.9.2.build-1/mpfr/src/.libs \
+--with-float=soft \
+--with-local-prefix=${PREFIX}
+
+make -j4
+make install
+
+cd ${PREFIX}/lib/gcc/${TARGET}/4.9.2
+ln -vs libgcc.a libgcc_eh.a
+ln -vs libgcc.a libgcc_s.a
+
+cd ${PRJROOT}/BUILD
+
+         <-------------------------------------------------->
+
+8.  GLIBC
+
+tar -jxvf ../SRC/glibc-2.20.tar.bz2 -C .
+
+mkdir glibc-2.20.build; cd glibc-2.20.build
+
+BUILD_CC=gcc CFLAGS="-O1" CC="$TARGET-gcc" \
+AR=$TARGET-ar RANLIB=${TARGET}-ranlib \
+../glibc-2.20/configure \
+--host=${TARGET} \
+--prefix=${PREFIX} \
+--enable-add-ons \
+--enable-obsolete-rpc \
+--disable-debug \
+--disable-profile \
+--without-gd \
+--without-cvs \
+--with-headers=${PREFIX}/include \
+--with-binutils=${PREFIX}/bin \
+libc_cv_forced_unwind=yes \
+libc_cv_c_cleanup=yes
+
+make -j4
+make install
+ 
+         <-------------------------------------------------->
+
+9.  GCC 2ND PASS
+
+Make sure you are in a BUILD directory by using following command.
+cd ${PRJROOT}/BUILD
+mkdir gcc-4.9.2.build-2; cd gcc-4.9.2.build-2
+
+CFLAGS="-O1" \
+CXXFLAGS="-O1" \
+../gcc-4.9.2/configure \
+--prefix=${PREFIX} \
+--target=${TARGET} \
+--disable-nls \
+--disable-multilib \
+--includedir=${PREFIX}/include \
+--without-included-gettext \
+--enable-threads=posix \
+--enable-languages=c,c++ \
+--enable-long-long \
+--disable-checking \
+--enable-cstdio=stdio \
+--enable-clocale=generic \
+--enable-c99 \
+--enable-version-specific-runtime-libs \
+--disable-libmudflap \
+--with-mpfr-include=${PRJROOT}/BUILD/gcc-4.9.2/mpfr/src \
+--with-mpfr-lib=${PRJROOT}/BUILD/gcc-4.9.2.build-2/mpfr/src/.libs \
+--with-float=soft \
+--with-local-prefix=${PREFIX}/local \
+--with-libs="${PREFIX}/lib" \
+--with-headers=${PREFIX}/include
+
+make -j4 \
+CFLAGS_FOR_TARGET="-O2" \ 
+CXXFLAGS_FOR_TARGET="-O1" \
+CFLAGS_FOR_BUILD="-O1"
+
+make install
+
+ 
+################################ Part C ##############################
+C. Testing The Tool Chain
+
+Create myApp directory under buildArmlinux and type in the following "C" 
+program (testTools.c) to find out if tool chain was created properly.
+
+mkdir -p ~/buildArmlinux/myApp; cd ~/buildArmlinux/myApp
+
+#include <stdio.h>
+int main()
+{
+    printf("Testing Assignment# 2\n");
+    printf("Your Name:\n");
+    printf("This program is being built on the following toolchain\n");
+    printf("gcc 4.9.2, binutils 2.24, glibc 2.20\n");
+    printf("Running on kernel:\n");
+    system("uname -a");
+    return (0);
+}
+
+         <-------------------------------------------------->
+
+
+Compiling C Example
+
+After you finish typing in the above program use followng command to compile it:
+arm-none-linux-gnueabi-gcc -static -o testTools testTools.c
+
+Check testTools for Processor Type
+file testTools
+
+Output:
+testTools: ELF 32-bit LSB executable, ARM, EABI5 version 1 (SYSV), statically linked, 
+for GNU/Linux 2.6.32, not stripped
+
+         <-------------------------------------------------->
+
+Running testTools on Target Board (With original Linux)
+
+Use minicom or screen from your host system to connect with your target.  Once you are 
+at Linux prompt on your target use following command to transfer testToots file.
+
+# From your target with original Linux that is in the target flash
+scp userAccountOnHostSystem@HOST_SYSTEM_IP_ADDRESS:PATH_WHERE_testTools_IS_LOCATED /home/chip 
+ 
+Run following command from your target which will make your testTools file executable 
+by anyone:
+chmod 777 testTools 
+
+Following line will exceute your program which will display info in your minicom window.
+./testTools
+
+Remember that any program compiled using "arm-none-linux-gnueabi-gcc" compiler will 
+only work on the target board, you will not be able to run it on your host system.
+
+################################ Part D ##############################
+D. Repackaging the initramfs
+
+Once testTools program is verified, copy it to the dissected initramfs that you have
+from assignment# 1 and repackage the initramfs according to the instructions given in the
+assignment#1.  Now you are ready to submit your initramfs to received a credit for 
+assignment #2.  Please test your initramfs on your target before submitting it.  
+
+################################ Part E ##############################
+E. Downloading initramfs Image to the Target Board
+
+Follow instructions that are given in assignment# 1 for Downloading initramfs
+to your target board.
